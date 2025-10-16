@@ -4,8 +4,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Load environment variables from .env file (for local development)
-load_dotenv()
+# Load environment variables from .env file only if DATABASE_URL is not set (for local development)
+if not os.getenv('DATABASE_URL'):
+    load_dotenv()
 # --- Database Configuration ---
 
 # --- Database Configuration ---
