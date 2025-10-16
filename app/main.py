@@ -88,6 +88,7 @@ def check_pending_mails_task():
 
                 # Mark as notified
                 mail.notified = True
+                mail.notified_at = datetime.utcnow()
                 db.add(mail)
         db.commit()
     finally:

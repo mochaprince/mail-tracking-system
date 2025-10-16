@@ -3,15 +3,16 @@ from sqlalchemy.orm import Session
 from .models import Mail
 from dateutil import parser
 import pandas as pd
+import random
 
 # --- EKSU Reference Generator ---
 def generate_eksu_ref(db: Session):
     """
-    Generates a new EKSU reference like EKSU001, EKSU002, ...
+    Generates a new EKSU reference like EKSU-20231201-12345
     """
-    last_mail = db.query(Mail).order_by(Mail.id.desc()).first()
-    next_number = 1 if not last_mail else last_mail.id + 1
-    return f"EKSU{next_number:03d}"
+    date_part = datetime.now().strftime("%Y%m%d")
+    random_part = str(random.randint(10000, 99999))
+    return f"EKSU-{date_part}-{random_part}"
 
 # --- Excel Parsing ---
 def parse_excel_to_rows(file_like) -> list:
@@ -34,7 +35,7 @@ def parse_excel_to_rows(file_like) -> list:
             "document": r.get("document"),
             "recipient": r.get("to") or r.get("recipient"),
             "date_sent": date_val,
-            "status": r.get("status") or "Pending",
+            "status": r.get("status") or "pending",
             "response_date": resp_date
         })
     return rows
@@ -58,12 +59,11 @@ def simple_match_and_upsert(rows: list, db: Session):
         if existing:
             if r["response_date"]:
                 existing.response_date = r["response_date"]
-                existing.status = "Completed"
+                existing.status = "completed"
             db.add(existing)
             db.commit()
             continue
 
-        from .utils import generate_eksu_ref
         eksu_ref = generate_eksu_ref(db)
 
         new = Mail(
@@ -86,24 +86,18 @@ def simple_match_and_upsert(rows: list, db: Session):
             possible = db.query(Mail).filter(
                 Mail.sender == r["recipient"],
                 Mail.recipient == r["sender"],
-                Mail.status == "Pending"
+                Mail.status == "pending"
             ).order_by(Mail.date_sent.asc()).all()
             for p in possible:
                 if p.document and new.document and p.document.lower() in new.document.lower():
-                    p.status = "Completed"
+                    p.status = "completed"
                     p.response_date = new.date_sent
                     p.matched_to_id = new.id
                     db.add(p)
                     db.commit()
                     break
 
-def generate_eksu_ref(db: Session):
-    """
-    Generates EKSU reference like EKSU001, EKSU002, ...
-    """
-    last_mail = db.query(Mail).order_by(Mail.id.desc()).first()
-    next_number = 1 if not last_mail else last_mail.id + 1
-    return f"EKSU{next_number:03d}"
+
 
 def check_pending_mails_and_notify(db):
     """
