@@ -4,9 +4,22 @@ from fastapi import FastAPI, UploadFile, File, Depends, HTTPException,  WebSocke
 from app.database import SessionLocal, engine, Base
 from app import models, utils
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 import io
 import smtplib
 import asyncio
+
+# Pydantic models for API
+class MailCreate(BaseModel):
+    name: str
+    sender: str
+    document: str
+    recipient: str
+    date_sent: str  # ISO format
+    status: str = "pending"
+
+class MailStatusUpdate(BaseModel):
+    status: str
 
 # Create tables in the database
 Base.metadata.create_all(bind=engine)
@@ -66,6 +79,41 @@ def update_duration(mail_id: int, hours: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(mail)
     return {"message": f"Custom threshold updated to {hours} hours", "mail": mail}
+
+# ✅ Add a single mail
+@app.post("/mails")
+def create_mail(mail: MailCreate, db: Session = Depends(get_db)):
+    try:
+        date_sent = datetime.fromisoformat(mail.date_sent.replace('Z', '+00:00'))
+        eksu_ref = utils.generate_eksu_ref(db)
+        new_mail = models.Mail(
+            name=mail.name,
+            sender=mail.sender,
+            document=mail.document,
+            recipient=mail.recipient,
+            date_sent=date_sent,
+            status=mail.status,
+            eksu_ref=eksu_ref
+        )
+        db.add(new_mail)
+        db.commit()
+        db.refresh(new_mail)
+        return new_mail
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to create mail: {str(e)}")
+
+# ✅ Update mail status
+@app.put("/mails/{mail_id}/status")
+def update_mail_status(mail_id: int, status_update: MailStatusUpdate, db: Session = Depends(get_db)):
+    mail = db.query(models.Mail).filter(models.Mail.id == mail_id).first()
+    if not mail:
+        raise HTTPException(status_code=404, detail="Mail not found")
+
+    mail.status = status_update.status
+    mail.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(mail)
+    return {"message": "Status updated", "mail": mail}
 
 @app.on_event("startup")
 @repeat_every(seconds=3600)  # every 1 hour
