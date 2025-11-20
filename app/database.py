@@ -23,7 +23,9 @@ if database_url:
         del query_params['ssl-mode']
         # For PyMySQL, we might need to handle SSL differently, but for now, remove the param
     new_query = '&'.join([f"{k}={v[0]}" for k, v in query_params.items()])
-    SQLALCHEMY_DATABASE_URL = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
+    # Ensure the scheme includes the mysql-connector-python driver
+    scheme = "mysql+mysqlconnector"
+    SQLALCHEMY_DATABASE_URL = urlunparse((scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
 else:
     # For local development, construct from individual env vars
     SQLALCHEMY_DATABASE_URL = f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
