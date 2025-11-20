@@ -161,8 +161,8 @@ def get_new_alerts_from_db():
 
         for mail in recent_alerts:
             alerts.append({
-                "ref": mail.eksku_ref,
-                "message": f"Mail {mail.eksku_ref} from {mail.sender} to {mail.recipient} has not been attended to in {mail.custom_threshold_hours or 48} hours.",
+                "ref": mail.eksu_ref,
+                "message": f"Mail {mail.eksu_ref} from {mail.sender} to {mail.recipient} has not been attended to in {mail.custom_threshold_hours or 48} hours.",
                 "time": mail.notified_at.isoformat() if mail.notified_at else None
             })
         return alerts

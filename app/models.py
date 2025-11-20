@@ -10,12 +10,6 @@ class MailStatus(enum.Enum):
     completed = "completed"
     overdue = "overdue"
 
-# --- Function to generate EKSU reference ---
-def generate_reference_number():
-    date_part = datetime.datetime.now().strftime("%Y%m%d")
-    random_part = str(random.randint(10000, 99999))
-    return f"EKSU-{date_part}-{random_part}"
-
 # --- Main Table ---
 class Mail(Base):
     __tablename__ = "mails"
