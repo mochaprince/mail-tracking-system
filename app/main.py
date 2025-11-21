@@ -59,7 +59,7 @@ async def upload_excel(file: UploadFile = File(...), db: Session = Depends(get_d
         rows = utils.parse_excel_to_rows(filelike)  # Parse Excel/CSV
         utils.simple_match_and_upsert(rows, db)     # Insert/update records safely
 
-        return {"uploaded_rows": len(rows)}
+        return {"count": len(rows)}
 
     except Exception as e:
         # Detailed error message instead of generic 500
