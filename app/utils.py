@@ -8,11 +8,21 @@ import random
 # --- EKSU Reference Generator ---
 def generate_eksu_ref(db: Session):
     """
-    Generates a new EKSU reference like EKSU-20231201-12345
+    Generates a new sequential EKSU reference like EKSU0001, EKSU0002, etc.
     """
-    date_part = datetime.now().strftime("%Y%m%d")
-    random_part = str(random.randint(10000, 99999))
-    return f"EKSU-{date_part}-{random_part}"
+    # Get the highest existing EKSU ref
+    last_ref = db.query(Mail.eksu_ref).filter(Mail.eksu_ref.isnot(None)).order_by(Mail.eksu_ref.desc()).first()
+    if last_ref and last_ref[0]:
+        # Extract the number part, e.g., from "EKSU0001" get 1
+        num_str = last_ref[0][4:]  # Skip "EKSU"
+        try:
+            num = int(num_str)
+            next_num = num + 1
+        except ValueError:
+            next_num = 1
+    else:
+        next_num = 1
+    return f"EKSU{next_num:04d}"
 
 # --- Excel Parsing ---
 def parse_excel_to_rows(file_like) -> list:
@@ -25,17 +35,33 @@ def parse_excel_to_rows(file_like) -> list:
     for _, r in df.iterrows():
         date_val = None
         resp_date = None
-        if r.get("date"):
-            date_val = parser.parse(str(r.get("date")))
-        if r.get("response_date") and not pd.isna(r.get("response_date")):
-            resp_date = parser.parse(str(r.get("response_date")))
+        # Flexible column mapping
+        name = r.get("name") or r.get("department") or r.get("dept")
+        sender = r.get("sender") or r.get("from") or r.get("sender_email")
+        document = r.get("document") or r.get("subject") or r.get("mail_subject")
+        recipient = r.get("recipient") or r.get("to") or r.get("receiver") or r.get("recipient_email")
+        date_sent = r.get("date") or r.get("date_sent") or r.get("sent_date")
+        status = r.get("status") or "pending"
+        response_date = r.get("response_date") or r.get("reply_date") or r.get("received_date")
+
+        if date_sent:
+            try:
+                date_val = parser.parse(str(date_sent))
+            except:
+                date_val = None
+        if response_date and not pd.isna(response_date):
+            try:
+                resp_date = parser.parse(str(response_date))
+            except:
+                resp_date = None
+
         rows.append({
-            "name": r.get("name"),
-            "sender": r.get("from") or r.get("sender"),
-            "document": r.get("document"),
-            "recipient": r.get("to") or r.get("recipient"),
+            "name": name,
+            "sender": sender,
+            "document": document,
+            "recipient": recipient,
             "date_sent": date_val,
-            "status": r.get("status") or "pending",
+            "status": status,
             "response_date": resp_date
         })
     return rows
@@ -44,6 +70,8 @@ def parse_excel_to_rows(file_like) -> list:
 def simple_match_and_upsert(rows: list, db: Session):
     """
     For paper mail: matching is done by:
+      - Check for existing mail by sender, recipient, document, date_sent.
+      - If exists, update status, response_date if provided.
       - If new row has response_date -> treat as incoming reply; try to find earlier pending mail
         from the other party whose document matches (substring) and mark it completed.
       - Otherwise insert new pending mail.
@@ -57,9 +85,12 @@ def simple_match_and_upsert(rows: list, db: Session):
         ).first()
 
         if existing:
+            # Update existing mail
+            if r["status"] and r["status"] != existing.status:
+                existing.status = r["status"]
             if r["response_date"]:
                 existing.response_date = r["response_date"]
-                existing.status = "completed"
+                existing.status = "completed"  # Mark as completed if reply
             db.add(existing)
             db.commit()
             continue

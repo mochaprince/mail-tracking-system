@@ -90,6 +90,49 @@ def update_duration(mail_id: int, hours: int, db: Session = Depends(get_db)):
     db.refresh(mail)
     return {"message": f"Custom threshold updated to {hours} hours", "mail": mail}
 
+@app.get("/overdue-summary")
+def get_overdue_summary(db: Session = Depends(get_db)):
+    now = datetime.utcnow()
+    overdue_incoming = db.query(models.Mail).filter(
+        models.Mail.sender.isnot(None),
+        models.Mail.status == "pending",
+        (now - models.Mail.date_sent) > timedelta(hours=24),
+        (models.Mail.reminder_sent_at.is_(None) | ((now - models.Mail.reminder_sent_at) > timedelta(hours=24)))
+    ).count()
+    overdue_outgoing = db.query(models.Mail).filter(
+        models.Mail.recipient.isnot(None),
+        models.Mail.status == "pending",
+        (now - models.Mail.date_sent) > timedelta(hours=48),
+        (models.Mail.reminder_sent_at.is_(None) | ((now - models.Mail.reminder_sent_at) > timedelta(hours=24)))
+    ).count()
+    return {"incoming": overdue_incoming, "outgoing": overdue_outgoing}
+
+@app.get("/overdue-mails")
+def get_overdue_mails(db: Session = Depends(get_db)):
+    now = datetime.utcnow()
+    mails = db.query(models.Mail).filter(
+        models.Mail.status == "pending",
+        ((models.Mail.sender.isnot(None) & ((now - models.Mail.date_sent) > timedelta(hours=24))) |
+         (models.Mail.recipient.isnot(None) & ((now - models.Mail.date_sent) > timedelta(hours=48)))),
+        (models.Mail.reminder_sent_at.is_(None) | ((now - models.Mail.reminder_sent_at) > timedelta(hours=24)))
+    ).all()
+    return mails
+
+@app.put("/mails/{mail_id}/reminder-sent")
+def mark_reminder_sent(mail_id: int, db: Session = Depends(get_db)):
+    mail = db.query(models.Mail).filter(models.Mail.id == mail_id).first()
+    if not mail:
+        raise HTTPException(status_code=404, detail="Mail not found")
+    mail.reminder_sent_at = datetime.utcnow()
+    db.commit()
+    return {"message": "Reminder sent marked"}
+
+@app.delete("/mails/all")
+def delete_all_mails(db: Session = Depends(get_db)):
+    db.query(models.Mail).delete()
+    db.commit()
+    return {"message": "All mails deleted successfully"}
+
 # ✅ Add a single mail
 @app.post("/mails")
 def create_mail(mail: MailCreate, db: Session = Depends(get_db)):

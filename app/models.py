@@ -30,4 +30,5 @@ class Mail(Base):
     notified = Column(Boolean, default=False)  # To prevent duplicate notifications
     notified_at = Column(DateTime, nullable=True)
     notification_type = Column(String(50), default="system")  # 'system' or 'email'
+    reminder_sent_at = Column(DateTime, nullable=True)  # Track when reminder was sent
 
