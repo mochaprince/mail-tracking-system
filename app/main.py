@@ -93,18 +93,22 @@ def update_duration(mail_id: int, hours: int, db: Session = Depends(get_db)):
 @app.get("/overdue-summary")
 def get_overdue_summary(db: Session = Depends(get_db)):
     now = datetime.utcnow()
-    overdue_incoming = db.query(models.Mail).filter(
-        models.Mail.sender.isnot(None),
-        models.Mail.status == "pending",
-        (now - models.Mail.date_sent) > timedelta(hours=24),
-        (models.Mail.reminder_sent_at.is_(None) | ((now - models.Mail.reminder_sent_at) > timedelta(hours=24)))
-    ).count()
-    overdue_outgoing = db.query(models.Mail).filter(
-        models.Mail.recipient.isnot(None),
-        models.Mail.status == "pending",
-        (now - models.Mail.date_sent) > timedelta(hours=48),
-        (models.Mail.reminder_sent_at.is_(None) | ((now - models.Mail.reminder_sent_at) > timedelta(hours=24)))
-    ).count()
+    # Use raw SQL to avoid column issues
+    from sqlalchemy import text
+    result_incoming = db.execute(text("""
+        SELECT COUNT(*) as count FROM mails
+        WHERE sender IS NOT NULL AND status = 'pending'
+        AND TIMESTAMPDIFF(HOUR, date_sent, NOW()) > 24
+    """))
+    overdue_incoming = result_incoming.fetchone()[0]
+
+    result_outgoing = db.execute(text("""
+        SELECT COUNT(*) as count FROM mails
+        WHERE recipient IS NOT NULL AND status = 'pending'
+        AND TIMESTAMPDIFF(HOUR, date_sent, NOW()) > 48
+    """))
+    overdue_outgoing = result_outgoing.fetchone()[0]
+
     return {"incoming": overdue_incoming, "outgoing": overdue_outgoing}
 
 @app.get("/overdue-mails")
@@ -120,10 +124,13 @@ def get_overdue_mails(db: Session = Depends(get_db)):
 
 @app.put("/mails/{mail_id}/reminder-sent")
 def mark_reminder_sent(mail_id: int, db: Session = Depends(get_db)):
-    mail = db.query(models.Mail).filter(models.Mail.id == mail_id).first()
-    if not mail:
+    # Use raw SQL to avoid column issues
+    from sqlalchemy import text
+    result = db.execute(text("""
+        UPDATE mails SET reminder_sent_at = NOW() WHERE id = :mail_id
+    """), {"mail_id": mail_id})
+    if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Mail not found")
-    mail.reminder_sent_at = datetime.utcnow()
     db.commit()
     return {"message": "Reminder sent marked"}
 
@@ -207,16 +214,19 @@ def get_new_alerts_from_db():
         alerts = []
         # Fetch mails that have been notified in the last 10 seconds
         ten_seconds_ago = datetime.utcnow() - timedelta(seconds=10)
-        recent_alerts = db.query(models.Mail).filter(
-            models.Mail.notified == True,
-            models.Mail.notified_at >= ten_seconds_ago
-        ).all()
+        # Use raw SQL to avoid column issues if migration hasn't run
+        from sqlalchemy import text
+        result = db.execute(text("""
+            SELECT id, eksu_ref, sender, recipient, custom_threshold_hours, notified_at
+            FROM mails
+            WHERE notified = 1 AND notified_at >= :ten_seconds_ago
+        """), {"ten_seconds_ago": ten_seconds_ago})
 
-        for mail in recent_alerts:
+        for row in result:
             alerts.append({
-                "ref": mail.eksu_ref,
-                "message": f"Mail {mail.eksu_ref} from {mail.sender} to {mail.recipient} has not been attended to in {mail.custom_threshold_hours or 48} hours.",
-                "time": mail.notified_at.isoformat() if mail.notified_at else None
+                "ref": row.eksu_ref,
+                "message": f"Mail {row.eksu_ref} from {row.sender} to {row.recipient} has not been attended to in {row.custom_threshold_hours or 48} hours.",
+                "time": row.notified_at.isoformat() if row.notified_at else None
             })
         return alerts
     finally:
