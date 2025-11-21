@@ -1,6 +1,7 @@
 from fastapi_utils.tasks import repeat_every
 from datetime import datetime, timedelta
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException,  WebSocket
+from fastapi.middleware.cors import CORSMiddleware
 from app.database import SessionLocal, engine, Base
 from app import models, utils
 from sqlalchemy.orm import Session
@@ -26,6 +27,15 @@ Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI
 app = FastAPI(title="EKSU Mail Tracking System")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for now
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Dependency to get DB session
 def get_db():
