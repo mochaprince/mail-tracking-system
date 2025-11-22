@@ -229,12 +229,15 @@ def get_new_alerts_from_db():
                 "time": row.notified_at.isoformat() if row.notified_at else None
             })
         return alerts
+    except Exception as e:
+        print(f"Error in get_new_alerts_from_db: {e}")
+        return []
     finally:
         db.close()
 
 
 # ✅ WebSocket endpoint for real-time alerts
-@app.websocket("/ws/alerts")
+@app.websocket("/ws")
 async def alerts_ws(websocket: WebSocket):
     await websocket.accept()
     while True:
