@@ -10,8 +10,7 @@ if not os.getenv('DATABASE_URL'):
 # --- Database Configuration ---
 
 # --- Database Configuration ---
-# Use DATABASE_URL if set (e.g., in production on Render), otherwise construct from individual env vars
-# Note: Ensure all required env vars are set in .env for local dev or in deployment env
+# Use DATABASE_URL if set (e.g., in production on Render), otherwise use SQLite for local testing
 database_url = os.getenv('DATABASE_URL')
 if database_url:
     # For production (Render), parse and reconstruct URL to handle SSL parameters properly
@@ -27,8 +26,8 @@ if database_url:
     scheme = "mysql+mysqlconnector"
     SQLALCHEMY_DATABASE_URL = urlunparse((scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
 else:
-    # For local development, construct from individual env vars
-    SQLALCHEMY_DATABASE_URL = f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+    # For local testing, use SQLite
+    SQLALCHEMY_DATABASE_URL = "sqlite:///./mail_tracking.db"
 
 # --- Create the engine ---
 engine = create_engine(SQLALCHEMY_DATABASE_URL)

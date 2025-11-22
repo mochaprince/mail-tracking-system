@@ -16,15 +16,15 @@ class Mail(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     eksu_ref = Column(String(20), unique=True, index=True)  # ✅ new column
-    name = Column(String(200))
-    sender = Column(String(200))
-    document = Column(Text)
-    recipient = Column(String(200))
-    date_sent = Column(DateTime)
-    status = Column(Enum(MailStatus))
-    response_date = Column(DateTime)
+    name = Column(String(200), nullable=True)
+    sender = Column(String(200), nullable=True)
+    document = Column(Text, nullable=True)
+    recipient = Column(String(200), nullable=True)
+    date_sent = Column(DateTime, nullable=True)
+    status = Column(Enum(MailStatus), nullable=True)
+    response_date = Column(DateTime, nullable=True)
     custom_threshold_hours = Column(Integer, nullable=True)  # e.g. 24, 48
-    matched_to_id = Column(Integer)
+    matched_to_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, onupdate=func.now(), server_default=func.now())
     notified = Column(Boolean, default=False)  # To prevent duplicate notifications

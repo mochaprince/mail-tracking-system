@@ -72,6 +72,22 @@ def migrate_database():
         else:
             print("✅ eksu_ref column already exists.")
 
+        # Alter columns to nullable
+        print("Altering columns to nullable...")
+        conn.execute(text("""
+            ALTER TABLE mails
+            MODIFY COLUMN name VARCHAR(200) NULL,
+            MODIFY COLUMN sender VARCHAR(200) NULL,
+            MODIFY COLUMN document TEXT NULL,
+            MODIFY COLUMN recipient VARCHAR(200) NULL,
+            MODIFY COLUMN date_sent DATETIME NULL,
+            MODIFY COLUMN status ENUM('pending','completed','overdue') NULL,
+            MODIFY COLUMN response_date DATETIME NULL,
+            MODIFY COLUMN matched_to_id INT NULL
+        """))
+        conn.commit()
+        print("✅ Columns altered to nullable.")
+
         print("Migration completed!")
 
 if __name__ == "__main__":
